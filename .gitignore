@@ -1,0 +1,12 @@
+.vs/
+*.user
+*.exe
+*.obj
+*.pdb
+*.ilk
+output/
+Thumbs.db
+Desktop.ini
+Debug/
+Release/
+x64/
