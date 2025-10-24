@@ -1,23 +1,27 @@
-#include <windows.h>
+ï»¿#include <windows.h>
 #include <stdio.h>
 #include "config.h"
 #include "generator.h"
 
 VOID PrintBanner() {
-    printf("\n");
-    printf("  ˆˆˆW   ˆˆˆW ˆˆˆˆˆW ˆˆW      ˆˆˆˆˆˆW ˆˆˆˆˆˆˆWˆˆˆW   ˆˆW\n");
-    printf("  ˆˆˆˆW ˆˆˆˆQˆˆTPPˆˆWˆˆQ     ˆˆTPPPP] ˆˆTPPPP]ˆˆˆˆW  ˆˆQ\n");
-    printf("  ˆˆTˆˆˆˆTˆˆQˆˆˆˆˆˆˆQˆˆQ     ˆˆQ  ˆˆˆWˆˆˆˆˆW  ˆˆTˆˆW ˆˆQ\n");
-    printf("  ˆˆQZˆˆT]ˆˆQˆˆTPPˆˆQˆˆQ     ˆˆQ   ˆˆQˆˆTPP]  ˆˆQZˆˆWˆˆQ\n");
-    printf("  ˆˆQ ZP] ˆˆQˆˆQ  ˆˆQˆˆˆˆˆˆˆWZˆˆˆˆˆˆT]ˆˆˆˆˆˆˆWˆˆQ ZˆˆˆˆQ\n");
-    printf("  ZP]     ZP]ZP]  ZP]ZPPPPPP] ZPPPPP] ZPPPPPP]ZP]  ZPPP]\n");
-    printf("\n");
-    printf("  Educational Malware Generator - Maldev Academy\n");
-    printf("  For Authorized Lab Use Only\n");
-    printf("\n");
+    HANDLE hBanner;
+    DWORD bytes_read;
+    CHAR buffer[1024];
+
+    hBanner = CreateFileA("src\\banner.txt", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hBanner != INVALID_HANDLE_VALUE) {
+        if (ReadFile(hBanner, buffer, sizeof(buffer) - 1, &bytes_read, NULL)) {
+            buffer[bytes_read] = '\0';
+            printf("%s", buffer);
+        }
+        CloseHandle(hBanner);
+    }
+    printf("\nfor authorized lab use only\n");
 }
 
 VOID InitConfig(MalgenConfig* cfg) {
+    LARGE_INTEGER perf_counter;
+
     ZeroMemory(cfg, sizeof(MalgenConfig));
     cfg->payload_type = PAYLOAD_CALC;
     cfg->encryption = ENCRYPTION_NONE;
@@ -25,7 +29,53 @@ VOID InitConfig(MalgenConfig* cfg) {
     cfg->api_level = API_WINAPI;
     cfg->persistence = PERSISTENCE_NONE;
     cfg->target.use_sacrificial = TRUE;
+
+    QueryPerformanceCounter(&perf_counter);
+    cfg->xor_key = (BYTE)(perf_counter.LowPart & 0xFF);
+
     lstrcpyA(cfg->output_path, "output\\malware.exe");
+}
+
+VOID ShowMenu(MalgenConfig* cfg) {
+    INT choice;
+
+    printf("\nâ”â”â”â” malware configuration â”â”â”â”\n");
+
+    printf("[1] payload type\n");
+    printf("\t1. calc.exe (pop calculator)\n");
+    printf("\tselection: ");
+    scanf_s("%d", &choice);
+    cfg->payload_type = PAYLOAD_CALC;
+
+    printf("\n[2] encryption method\n");
+    printf("\t1. none\n");
+    printf("\tselection: ");
+    scanf_s("%d", &choice);
+    cfg->encryption = ENCRYPTION_NONE;
+
+    printf("\n[3] injection technique\n");
+    printf("\t1. CreateRemoteThread\n");
+    printf("\tselection: ");
+    scanf_s("%d", &choice);
+    cfg->injection = INJECTION_CREATE_REMOTE_THREAD;
+
+    printf("\n[4] target process\n");
+    printf("\t1. spawn sacrificial notepad.exe\n");
+    printf("\tselection: ");
+    scanf_s("%d", &choice);
+    cfg->target.use_sacrificial = TRUE;
+    lstrcpyA(cfg->target.process_name, "notepad.exe");
+
+    printf("\n[5] API level\n");
+    printf("\t1. WinAPI\n");
+    printf("\tselection: ");
+    scanf_s("%d", &choice);
+    cfg->api_level = API_WINAPI;
+
+    printf("\n[6] output path\n");
+    printf("\tdefault: %s\n", cfg->output_path);
+    printf("\tpress enter to continue");
+    getchar();
 }
 
 int wmain(int argc, char* argv[]) {
@@ -33,9 +83,15 @@ int wmain(int argc, char* argv[]) {
 
     PrintBanner();
     InitConfig(&config);
+    ShowMenu(&config);
 
-    printf("Press any key to continue...\n");
-    getchar();
+    printf("\nâ”â”â”â” generating malware â”â”â”â”\n");
+    if (GenerateMalware(&config)) {
+        printf("\nmalware generated successfully: %s\n", config.output_path);
+    } else {
+        printf("\nmalware generation failed\n");
+        return 1;
+    }
 
     return 0;
 }
