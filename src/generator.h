@@ -3,6 +3,6 @@
 
 #include "config.h"
 
-BOOL Generator(const MalgenConfig* config);
+BOOL GenerateMalware(const MalgenConfig* config);
 
 #endif

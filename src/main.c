@@ -3,6 +3,49 @@
 #include "config.h"
 #include "generator.h"
 
+BOOL CheckStubsExist() {
+    HANDLE hWinapi, hNtdll;
+    BOOL winapi_exists, ntdll_exists;
+
+    hWinapi = CreateFileA("src\\stubs\\stub_winapi.exe", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    winapi_exists = (hWinapi != INVALID_HANDLE_VALUE);
+    if (winapi_exists) CloseHandle(hWinapi);
+
+    hNtdll = CreateFileA("src\\stubs\\stub_ntdll.exe", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    ntdll_exists = (hNtdll != INVALID_HANDLE_VALUE);
+    if (ntdll_exists) CloseHandle(hNtdll);
+
+    return winapi_exists && ntdll_exists;
+}
+
+BOOL BuildStubs() {
+    STARTUPINFOA si = {sizeof(si)};
+    PROCESS_INFORMATION pi;
+    DWORD exit_code;
+
+    printf("stubs not found, building...\n");
+
+    if (!CreateProcessA(NULL, "cmd.exe /c cd src\\stubs && build_stubs.bat", NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        printf("failed to start build process\n");
+        printf("please run src\\stubs\\build_stubs.bat manually from Developer Command Prompt\n");
+        return FALSE;
+    }
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    GetExitCodeProcess(pi.hProcess, &exit_code);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    if (exit_code != 0) {
+        printf("stub build failed\n");
+        printf("please run src\\stubs\\build_stubs.bat manually from Developer Command Prompt\n");
+        return FALSE;
+    }
+
+    printf("stubs built successfully\n\n");
+    return TRUE;
+}
+
 VOID PrintBanner() {
     HANDLE hBanner;
     DWORD bytes_read;
@@ -75,13 +118,21 @@ VOID ShowMenu(MalgenConfig* cfg) {
     printf("\n[6] output path\n");
     printf("\tdefault: %s\n", cfg->output_path);
     printf("\tpress enter to continue");
-    getchar();
+    while (getchar() != '\n');
+    (void)getchar();
 }
 
 int wmain(int argc, char* argv[]) {
     MalgenConfig config;
 
     PrintBanner();
+
+    if (!CheckStubsExist()) {
+        if (!BuildStubs()) {
+            return 1;
+        }
+    }
+
     InitConfig(&config);
     ShowMenu(&config);
 
