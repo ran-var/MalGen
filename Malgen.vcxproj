@@ -127,7 +127,21 @@
     </Link>
   </ItemDefinitionGroup>
 
-  <ItemGroup></ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\main.c" />
+    <ClCompile Include="src\generator.c" />
+    <ClCompile Include="src\payloads\payloads.c" />
+    <ClCompile Include="src\crypto\crypto.c" />
+    <ClCompile Include="src\injection\injection.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\config.h" />
+    <ClInclude Include="src\generator.h" />
+    <ClInclude Include="src\payloads\payloads.h" />
+    <ClInclude Include="src\payloads\shellcode.h" />
+    <ClInclude Include="src\crypto\crypto.h" />
+    <ClInclude Include="src\injection\injection.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
