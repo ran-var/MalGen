@@ -127,9 +127,17 @@ VOID ShowMenu(MalgenConfig* cfg) {
 
     printf("\n[2] encryption method\n");
     printf("\t1. none\n");
+    printf("\t2. XOR (random key)\n");
     printf("\tselection: ");
     scanf_s("%d", &choice);
-    cfg->encryption = ENCRYPTION_NONE;
+    switch (choice) {
+    case 2:
+        cfg->encryption = ENCRYPTION_XOR;
+        break;
+    default:
+        cfg->encryption = ENCRYPTION_NONE;
+        break;
+    }
 
     printf("\n[3] injection technique\n");
     printf("\t1. CreateRemoteThread\n");

