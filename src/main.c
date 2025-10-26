@@ -3,15 +3,43 @@
 #include "config.h"
 #include "generator.h"
 
+CHAR g_repo_root[MAX_PATH];
+
+VOID GetRepoRoot() {
+    CHAR exe_path[MAX_PATH];
+    CHAR* last_slash;
+    DWORD i;
+
+    GetModuleFileNameA(NULL, exe_path, MAX_PATH);
+
+    lstrcpyA(g_repo_root, exe_path);
+
+    for (i = 0; i < 3; i++) {
+        last_slash = NULL;
+        for (CHAR* p = g_repo_root; *p; p++) {
+            if (*p == '\\') last_slash = p;
+        }
+        if (last_slash) *last_slash = '\0';
+    }
+}
+
+VOID BuildPath(CHAR* dest, SIZE_T dest_size, const CHAR* relative_path) {
+    wsprintfA(dest, "%s\\%s", g_repo_root, relative_path);
+}
+
 BOOL CheckStubsExist() {
     HANDLE hWinapi, hNtdll;
     BOOL winapi_exists, ntdll_exists;
+    CHAR winapi_path[MAX_PATH], ntdll_path[MAX_PATH];
 
-    hWinapi = CreateFileA("src\\stubs\\stub_winapi.exe", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    BuildPath(winapi_path, MAX_PATH, "src\\stubs\\stub_winapi.exe");
+    BuildPath(ntdll_path, MAX_PATH, "src\\stubs\\stub_ntdll.exe");
+
+    hWinapi = CreateFileA(winapi_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     winapi_exists = (hWinapi != INVALID_HANDLE_VALUE);
     if (winapi_exists) CloseHandle(hWinapi);
 
-    hNtdll = CreateFileA("src\\stubs\\stub_ntdll.exe", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    hNtdll = CreateFileA(ntdll_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     ntdll_exists = (hNtdll != INVALID_HANDLE_VALUE);
     if (ntdll_exists) CloseHandle(hNtdll);
 
@@ -22,10 +50,14 @@ BOOL BuildStubs() {
     STARTUPINFOA si = {sizeof(si)};
     PROCESS_INFORMATION pi;
     DWORD exit_code;
+    CHAR stubs_dir[MAX_PATH], cmd[MAX_PATH * 2];
 
     printf("stubs not found, building...\n");
 
-    if (!CreateProcessA(NULL, "cmd.exe /c cd src\\stubs && build_stubs.bat", NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+    BuildPath(stubs_dir, MAX_PATH, "src\\stubs");
+    wsprintfA(cmd, "cmd.exe /c cd /d \"%s\" && build_stubs.bat", stubs_dir);
+
+    if (!CreateProcessA(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
         printf("failed to start build process\n");
         printf("please run src\\stubs\\build_stubs.bat manually from Developer Command Prompt\n");
         return FALSE;
@@ -50,8 +82,11 @@ VOID PrintBanner() {
     HANDLE hBanner;
     DWORD bytes_read;
     CHAR buffer[1024];
+    CHAR banner_path[MAX_PATH];
 
-    hBanner = CreateFileA("src\\banner.txt", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    BuildPath(banner_path, MAX_PATH, "src\\banner.txt");
+
+    hBanner = CreateFileA(banner_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hBanner != INVALID_HANDLE_VALUE) {
         if (ReadFile(hBanner, buffer, sizeof(buffer) - 1, &bytes_read, NULL)) {
             buffer[bytes_read] = '\0';
@@ -76,7 +111,7 @@ VOID InitConfig(MalgenConfig* cfg) {
     QueryPerformanceCounter(&perf_counter);
     cfg->xor_key = (BYTE)(perf_counter.LowPart & 0xFF);
 
-    lstrcpyA(cfg->output_path, "output\\malware.exe");
+    BuildPath(cfg->output_path, sizeof(cfg->output_path), "output\\malware.exe");
 }
 
 VOID ShowMenu(MalgenConfig* cfg) {
@@ -125,6 +160,7 @@ VOID ShowMenu(MalgenConfig* cfg) {
 int wmain(int argc, char* argv[]) {
     MalgenConfig config;
 
+    GetRepoRoot();
     PrintBanner();
 
     if (!CheckStubsExist()) {

