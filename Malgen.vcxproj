@@ -124,12 +124,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\main.c" />
+    <ClCompile Include="src\menu.c" />
     <ClCompile Include="src\generator.c" />
     <ClCompile Include="src\payloads\payloads.c" />
     <ClCompile Include="src\crypto\crypto.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\config.h" />
+    <ClInclude Include="src\menu.h" />
     <ClInclude Include="src\generator.h" />
     <ClInclude Include="src\payloads\payloads.h" />
     <ClInclude Include="src\payloads\shellcode.h" />

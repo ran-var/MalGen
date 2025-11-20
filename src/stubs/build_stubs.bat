@@ -27,7 +27,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-cl.exe /nologo /O2 stub_winapi.c /Fe:stub_winapi.exe /link /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib
+cl.exe /nologo /O2 stub_winapi.c /Fe:stub_winapi.exe /link /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib user32.lib
 if %errorlevel% neq 0 (
     echo.
     echo failed to build stub_winapi
@@ -36,7 +36,7 @@ if %errorlevel% neq 0 (
 )
 echo built stub_winapi.exe
 
-cl.exe /nologo /O2 stub_ntdll.c /Fe:stub_ntdll.exe /link /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib
+cl.exe /nologo /O2 stub_ntdll.c /Fe:stub_ntdll.exe /link /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib user32.lib
 if %errorlevel% neq 0 (
     echo.
     echo failed to build stub_ntdll
