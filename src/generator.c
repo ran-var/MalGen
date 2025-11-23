@@ -28,8 +28,11 @@ BOOL GetStubPath(const MalgenConfig* config, CHAR* stub_path) {
     case API_NTDLL:
         api_name = "ntdll";
         break;
-    case API_SYSCALLS:
+    case API_DIRECT_SYSCALLS:
         api_name = "syscalls";
+        break;
+    case API_INDIRECT_SYSCALLS:
+        api_name = "indirect";
         break;
     default:
         api_name = "winapi";
@@ -234,7 +237,8 @@ VOID PrintConfigSummary(const MalgenConfig* config) {
     switch (config->api_level) {
     case API_WINAPI: printf("WinAPI\n"); break;
     case API_NTDLL: printf("NTDLL\n"); break;
-    case API_SYSCALLS: printf("syscalls\n"); break;
+    case API_DIRECT_SYSCALLS: printf("direct syscalls\n"); break;
+    case API_INDIRECT_SYSCALLS: printf("indirect syscalls\n"); break;
     }
 
     printf("\ttarget: %s\n", config->target.process_name);

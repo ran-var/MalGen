@@ -54,8 +54,10 @@ VOID CalculateDetectionRisk(const MalgenConfig* config, DetectionRisk* risk) {
 
     if (config->api_level == API_WINAPI) {
         risk->behavior_risk += 1;
-    } else if (config->api_level == API_SYSCALLS) {
+    } else if (config->api_level == API_DIRECT_SYSCALLS) {
         risk->behavior_risk -= 2;
+    } else if (config->api_level == API_INDIRECT_SYSCALLS) {
+        risk->behavior_risk -= 3;
     }
 
     if (config->persistence != PERSISTENCE_NONE) {
@@ -117,7 +119,8 @@ const CHAR* GetApiLevelName(ApiLevel level) {
     switch (level) {
     case API_WINAPI: return "WinAPI";
     case API_NTDLL: return "NTDLL";
-    case API_SYSCALLS: return "syscalls";
+    case API_DIRECT_SYSCALLS: return "direct syscalls";
+    case API_INDIRECT_SYSCALLS: return "indirect syscalls";
     default: return "unknown";
     }
 }
@@ -275,17 +278,18 @@ VOID DeliveryMenu(MalgenConfig* config) {
         printf("API level:\n");
         printf("%s WinAPI\n", selected == 5 ? ">" : " ");
         printf("%s NTDLL\n", selected == 6 ? ">" : " ");
-        printf("%s syscalls [not implemented]\n\n", selected == 7 ? ">" : " ");
+        printf("%s direct syscalls\n", selected == 7 ? ">" : " ");
+        printf("%s indirect syscalls\n\n", selected == 8 ? ">" : " ");
 
         printf("target process:\n");
-        printf("%s spawn sacrificial: %s\n\n", selected == 8 ? ">" : " ", config->target.process_name);
+        printf("%s spawn sacrificial: %s\n\n", selected == 9 ? ">" : " ", config->target.process_name);
 
         printf("esc to go back\n");
 
         INT key = GetKeyPress();
         if (key == KEY_UP && selected > 0) {
             selected--;
-        } else if (key == KEY_DOWN && selected < 8) {
+        } else if (key == KEY_DOWN && selected < 9) {
             selected++;
         } else if (key == KEY_ENTER) {
             switch (selected) {
@@ -303,6 +307,12 @@ VOID DeliveryMenu(MalgenConfig* config) {
                 break;
             case 6:
                 config->api_level = API_NTDLL;
+                break;
+            case 7:
+                config->api_level = API_DIRECT_SYSCALLS;
+                break;
+            case 8:
+                config->api_level = API_INDIRECT_SYSCALLS;
                 break;
             }
         } else if (key == KEY_ESC) {
@@ -495,20 +505,19 @@ VOID ApiMenu(MalgenConfig* config) {
 
         printf("%s WinAPI\n", selected == API_WINAPI ? ">" : " ");
         printf("%s NTDLL\n", selected == API_NTDLL ? ">" : " ");
-        printf("%s syscalls [not implemented]\n\n", selected == API_SYSCALLS ? ">" : " ");
+        printf("%s direct syscalls\n", selected == API_DIRECT_SYSCALLS ? ">" : " ");
+        printf("%s indirect syscalls\n\n", selected == API_INDIRECT_SYSCALLS ? ">" : " ");
 
         printf("esc to go back\n");
 
         INT key = GetKeyPress();
         if (key == KEY_UP && selected > 0) {
             selected--;
-        } else if (key == KEY_DOWN && selected < 2) {
+        } else if (key == KEY_DOWN && selected < 3) {
             selected++;
         } else if (key == KEY_ENTER) {
-            if (selected == API_WINAPI || selected == API_NTDLL) {
-                config->api_level = selected;
-                running = FALSE;
-            }
+            config->api_level = selected;
+            running = FALSE;
         } else if (key == KEY_ESC) {
             running = FALSE;
         }

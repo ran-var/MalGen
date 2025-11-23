@@ -30,7 +30,8 @@ typedef enum {
 typedef enum {
     API_WINAPI,
     API_NTDLL,
-    API_SYSCALLS
+    API_DIRECT_SYSCALLS,
+    API_INDIRECT_SYSCALLS
 } ApiLevel;
 
 typedef enum {

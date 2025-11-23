@@ -45,6 +45,58 @@ if %errorlevel% neq 0 (
 )
 echo built stub_ntdll.exe
 
+ml64.exe /nologo /c syscalls.asm
+if %errorlevel% neq 0 (
+    echo.
+    echo failed to assemble syscalls.asm
+    pause
+    exit /b 1
+)
+echo assembled syscalls.asm
+
+cl.exe /nologo /O2 /c stub_syscalls.c
+if %errorlevel% neq 0 (
+    echo.
+    echo failed to compile stub_syscalls.c
+    pause
+    exit /b 1
+)
+
+link.exe /nologo /OUT:stub_syscalls.exe stub_syscalls.obj syscalls.obj /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib user32.lib
+if %errorlevel% neq 0 (
+    echo.
+    echo failed to link stub_syscalls
+    pause
+    exit /b 1
+)
+echo built stub_syscalls.exe
+
+ml64.exe /nologo /c indirect.asm
+if %errorlevel% neq 0 (
+    echo.
+    echo failed to assemble indirect.asm
+    pause
+    exit /b 1
+)
+echo assembled indirect.asm
+
+cl.exe /nologo /O2 /c stub_indirect.c
+if %errorlevel% neq 0 (
+    echo.
+    echo failed to compile stub_indirect.c
+    pause
+    exit /b 1
+)
+
+link.exe /nologo /OUT:stub_indirect.exe stub_indirect.obj indirect.obj /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib user32.lib
+if %errorlevel% neq 0 (
+    echo.
+    echo failed to link stub_indirect
+    pause
+    exit /b 1
+)
+echo built stub_indirect.exe
+
 del *.obj >nul 2>&1
 echo.
 echo stub build complete
