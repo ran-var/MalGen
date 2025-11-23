@@ -100,6 +100,7 @@ const CHAR* GetEncryptionName(EncryptionMethod method) {
     case ENCRYPTION_NONE: return "none";
     case ENCRYPTION_XOR: return "XOR";
     case ENCRYPTION_AES: return "AES-256";
+    case ENCRYPTION_RC4: return "RC4";
     default: return "unknown";
     }
 }
@@ -333,7 +334,8 @@ VOID EncryptionMenu(MalgenConfig* config) {
 
         printf("%s none (plaintext payload)\n", selected == ENCRYPTION_NONE ? ">" : " ");
         printf("%s XOR (single-byte key)\n", selected == ENCRYPTION_XOR ? ">" : " ");
-        printf("%s AES-256 [not implemented]\n\n", selected == ENCRYPTION_AES ? ">" : " ");
+        printf("%s AES-256-CBC (random key)\n", selected == ENCRYPTION_AES ? ">" : " ");
+        printf("%s RC4 (random key)\n\n", selected == ENCRYPTION_RC4 ? ">" : " ");
 
         if (config->encryption == ENCRYPTION_XOR) {
             printf("current XOR key: 0x%02X\n\n", config->xor_key);
@@ -344,13 +346,11 @@ VOID EncryptionMenu(MalgenConfig* config) {
         INT key = GetKeyPress();
         if (key == KEY_UP && selected > 0) {
             selected--;
-        } else if (key == KEY_DOWN && selected < 2) {
+        } else if (key == KEY_DOWN && selected < 3) {
             selected++;
         } else if (key == KEY_ENTER) {
-            if (selected == ENCRYPTION_NONE || selected == ENCRYPTION_XOR) {
-                config->encryption = selected;
-                running = FALSE;
-            }
+            config->encryption = selected;
+            running = FALSE;
         } else if (key == KEY_ESC) {
             running = FALSE;
         }

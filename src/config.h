@@ -16,7 +16,8 @@ typedef enum {
 typedef enum {
     ENCRYPTION_NONE,
     ENCRYPTION_XOR,
-    ENCRYPTION_AES
+    ENCRYPTION_AES,
+    ENCRYPTION_RC4
 } EncryptionMethod;
 
 typedef enum {
@@ -68,6 +69,9 @@ typedef struct {
     SIZE_T shellcode_size;
 
     BYTE xor_key;
+    BYTE aes_key[32];
+    BYTE aes_iv[16];
+    BYTE rc4_key[16];
 
     CHAR lhost[64];
     WORD lport;
