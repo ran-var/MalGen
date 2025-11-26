@@ -192,7 +192,11 @@ void decrypt_rc4(unsigned char* data, DWORD size, unsigned char* key, DWORD key_
 }
 
 BOOL check_peb_debugged() {
-	PPEB peb = (PPEB)__readgsqword(0x60);
+	typedef struct _PEB {
+		BYTE Reserved1[2];
+		BYTE BeingDebugged;
+	} PEB;
+	PEB* peb = (PEB*)__readgsqword(0x60);
 	return peb->BeingDebugged;
 }
 
