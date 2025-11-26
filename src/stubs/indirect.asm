@@ -10,6 +10,8 @@ EXTERN wNtMapViewOfSection:DWORD
 EXTERN wNtUnmapViewOfSection:DWORD
 EXTERN wNtResumeThread:DWORD
 EXTERN wNtClose:DWORD
+EXTERN wNtGetContextThread:DWORD
+EXTERN wNtSetContextThread:DWORD
 
 EXTERN pNtAllocateVirtualMemory:QWORD
 EXTERN pNtWriteVirtualMemory:QWORD
@@ -21,6 +23,8 @@ EXTERN pNtMapViewOfSection:QWORD
 EXTERN pNtUnmapViewOfSection:QWORD
 EXTERN pNtResumeThread:QWORD
 EXTERN pNtClose:QWORD
+EXTERN pNtGetContextThread:QWORD
+EXTERN pNtSetContextThread:QWORD
 
 SysNtAllocateVirtualMemory PROC
     mov r10, rcx
@@ -81,5 +85,17 @@ SysNtClose PROC
     mov eax, wNtClose
     jmp qword ptr [pNtClose]
 SysNtClose ENDP
+
+SysNtGetContextThread PROC
+    mov r10, rcx
+    mov eax, wNtGetContextThread
+    jmp qword ptr [pNtGetContextThread]
+SysNtGetContextThread ENDP
+
+SysNtSetContextThread PROC
+    mov r10, rcx
+    mov eax, wNtSetContextThread
+    jmp qword ptr [pNtSetContextThread]
+SysNtSetContextThread ENDP
 
 end

@@ -44,7 +44,15 @@ typedef enum {
 } PersistenceMethod;
 
 typedef struct {
-    BOOL anti_debug;
+    BOOL check_peb_being_debugged;
+    BOOL check_debug_port;
+    BOOL check_debug_object;
+    BOOL check_hardware_breakpoints;
+    BOOL check_remote_debugger;
+} AntiDebugOptions;
+
+typedef struct {
+    AntiDebugOptions anti_debug;
     BOOL anti_vm;
     BOOL anti_sandbox;
     BOOL obfuscate_strings;
