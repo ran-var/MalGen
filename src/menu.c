@@ -412,15 +412,15 @@ VOID EvasionMenu(MalgenConfig* config) {
         printf("%s [%c] mouse movement check\n", selected == 9 ? ">" : " ", config->anti_analysis.anti_sandbox.check_mouse_movement ? 'X' : ' ');
         printf("%s [%c] username check (sandbox/malware/test)\n\n", selected == 10 ? ">" : " ", config->anti_analysis.anti_sandbox.check_username ? 'X' : ' ');
 
-        printf("obfuscation: [not implemented]\n");
-        printf("  [%c] string encryption\n\n", config->anti_analysis.obfuscate_strings ? 'X' : ' ');
+        printf("obfuscation:\n");
+        printf("%s [%c] API hashing (resolve funcs by hash)\n\n", selected == 11 ? ">" : " ", config->anti_analysis.obfuscate_strings ? 'X' : ' ');
 
         printf("arrow keys to navigate, enter to toggle, esc to go back\n");
 
         INT key = GetKeyPress();
         if (key == KEY_UP && selected > 0) {
             selected--;
-        } else if (key == KEY_DOWN && selected < 10) {
+        } else if (key == KEY_DOWN && selected < 11) {
             selected++;
         } else if (key == KEY_ENTER) {
             switch (selected) {
@@ -456,6 +456,9 @@ VOID EvasionMenu(MalgenConfig* config) {
                 break;
             case 10:
                 config->anti_analysis.anti_sandbox.check_username = !config->anti_analysis.anti_sandbox.check_username;
+                break;
+            case 11:
+                config->anti_analysis.obfuscate_strings = !config->anti_analysis.obfuscate_strings;
                 break;
             }
         } else if (key == KEY_ESC) {
