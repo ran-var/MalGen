@@ -55,8 +55,16 @@ VOID CalculateDetectionRisk(const MalgenConfig* config, DetectionRisk* risk) {
         config->anti_analysis.anti_debug.check_remote_debugger) {
         risk->dynamic_risk -= 1;
     }
-    if (config->anti_analysis.anti_vm) risk->dynamic_risk -= 1;
-    if (config->anti_analysis.anti_sandbox) risk->dynamic_risk -= 1;
+    if (config->anti_analysis.anti_vm.check_registry_keys ||
+        config->anti_analysis.anti_vm.check_files ||
+        config->anti_analysis.anti_vm.check_cpuid) {
+        risk->dynamic_risk -= 1;
+    }
+    if (config->anti_analysis.anti_sandbox.check_sleep_acceleration ||
+        config->anti_analysis.anti_sandbox.check_mouse_movement ||
+        config->anti_analysis.anti_sandbox.check_username) {
+        risk->dynamic_risk -= 1;
+    }
 
     if (config->api_level == API_WINAPI) {
         risk->behavior_risk += 1;
@@ -150,8 +158,12 @@ VOID GetEvasionSummary(const MalgenConfig* config, CHAR* buffer, SIZE_T size) {
     if (config->anti_analysis.anti_debug.check_debug_object) count++;
     if (config->anti_analysis.anti_debug.check_hardware_breakpoints) count++;
     if (config->anti_analysis.anti_debug.check_remote_debugger) count++;
-    if (config->anti_analysis.anti_vm) count++;
-    if (config->anti_analysis.anti_sandbox) count++;
+    if (config->anti_analysis.anti_vm.check_registry_keys) count++;
+    if (config->anti_analysis.anti_vm.check_files) count++;
+    if (config->anti_analysis.anti_vm.check_cpuid) count++;
+    if (config->anti_analysis.anti_sandbox.check_sleep_acceleration) count++;
+    if (config->anti_analysis.anti_sandbox.check_mouse_movement) count++;
+    if (config->anti_analysis.anti_sandbox.check_username) count++;
     if (config->anti_analysis.obfuscate_strings) count++;
 
     if (count == 0) {
@@ -390,13 +402,15 @@ VOID EvasionMenu(MalgenConfig* config) {
         printf("%s [%c] hardware breakpoints (DR0-DR3)\n", selected == 3 ? ">" : " ", config->anti_analysis.anti_debug.check_hardware_breakpoints ? 'X' : ' ');
         printf("%s [%c] CheckRemoteDebuggerPresent\n\n", selected == 4 ? ">" : " ", config->anti_analysis.anti_debug.check_remote_debugger ? 'X' : ' ');
 
-        printf("anti-VM: [not implemented]\n");
-        printf("  [%c] VM artifacts detection\n", config->anti_analysis.anti_vm ? 'X' : ' ');
-        printf("  [%c] CPUID vendor check\n\n", config->anti_analysis.anti_vm ? 'X' : ' ');
+        printf("anti-VM:\n");
+        printf("%s [%c] registry keys (VBox/VMware services)\n", selected == 5 ? ">" : " ", config->anti_analysis.anti_vm.check_registry_keys ? 'X' : ' ');
+        printf("%s [%c] VM driver files\n", selected == 6 ? ">" : " ", config->anti_analysis.anti_vm.check_files ? 'X' : ' ');
+        printf("%s [%c] CPUID hypervisor bit\n\n", selected == 7 ? ">" : " ", config->anti_analysis.anti_vm.check_cpuid ? 'X' : ' ');
 
-        printf("anti-sandbox: [not implemented]\n");
-        printf("  [%c] sleep acceleration detection\n", config->anti_analysis.anti_sandbox ? 'X' : ' ');
-        printf("  [%c] user interaction check\n\n", config->anti_analysis.anti_sandbox ? 'X' : ' ');
+        printf("anti-sandbox:\n");
+        printf("%s [%c] sleep acceleration detection\n", selected == 8 ? ">" : " ", config->anti_analysis.anti_sandbox.check_sleep_acceleration ? 'X' : ' ');
+        printf("%s [%c] mouse movement check\n", selected == 9 ? ">" : " ", config->anti_analysis.anti_sandbox.check_mouse_movement ? 'X' : ' ');
+        printf("%s [%c] username check (sandbox/malware/test)\n\n", selected == 10 ? ">" : " ", config->anti_analysis.anti_sandbox.check_username ? 'X' : ' ');
 
         printf("obfuscation: [not implemented]\n");
         printf("  [%c] string encryption\n\n", config->anti_analysis.obfuscate_strings ? 'X' : ' ');
@@ -406,7 +420,7 @@ VOID EvasionMenu(MalgenConfig* config) {
         INT key = GetKeyPress();
         if (key == KEY_UP && selected > 0) {
             selected--;
-        } else if (key == KEY_DOWN && selected < 4) {
+        } else if (key == KEY_DOWN && selected < 10) {
             selected++;
         } else if (key == KEY_ENTER) {
             switch (selected) {
@@ -424,6 +438,24 @@ VOID EvasionMenu(MalgenConfig* config) {
                 break;
             case 4:
                 config->anti_analysis.anti_debug.check_remote_debugger = !config->anti_analysis.anti_debug.check_remote_debugger;
+                break;
+            case 5:
+                config->anti_analysis.anti_vm.check_registry_keys = !config->anti_analysis.anti_vm.check_registry_keys;
+                break;
+            case 6:
+                config->anti_analysis.anti_vm.check_files = !config->anti_analysis.anti_vm.check_files;
+                break;
+            case 7:
+                config->anti_analysis.anti_vm.check_cpuid = !config->anti_analysis.anti_vm.check_cpuid;
+                break;
+            case 8:
+                config->anti_analysis.anti_sandbox.check_sleep_acceleration = !config->anti_analysis.anti_sandbox.check_sleep_acceleration;
+                break;
+            case 9:
+                config->anti_analysis.anti_sandbox.check_mouse_movement = !config->anti_analysis.anti_sandbox.check_mouse_movement;
+                break;
+            case 10:
+                config->anti_analysis.anti_sandbox.check_username = !config->anti_analysis.anti_sandbox.check_username;
                 break;
             }
         } else if (key == KEY_ESC) {

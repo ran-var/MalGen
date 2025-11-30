@@ -77,10 +77,10 @@ BOOL InjectPayload(LPVOID payload, SIZE_T size, const TargetProcess* target, Inj
     case INJECTION_CREATE_REMOTE_THREAD:
         return InjectViaCreateRemoteThread(payload, size, target);
 
-    case INJECTION_APC:
+    case INJECTION_EARLY_BIRD_APC:
     case INJECTION_THREAD_HIJACKING:
     case INJECTION_PROCESS_HOLLOWING:
-    case INJECTION_STOMPING:
+    case INJECTION_REMOTE_MAPPING:
         printf("injection technique not implemented\n");
         return FALSE;
 

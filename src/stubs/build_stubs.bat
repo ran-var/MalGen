@@ -27,7 +27,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-cl.exe /nologo /O2 stub_winapi.c /Fe:stub_winapi.exe /link /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib user32.lib
+cl.exe /nologo /O2 stub_winapi.c /Fe:stub_winapi.exe /link /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib user32.lib advapi32.lib
 if %errorlevel% neq 0 (
     echo.
     echo failed to build stub_winapi
@@ -36,7 +36,7 @@ if %errorlevel% neq 0 (
 )
 echo built stub_winapi.exe
 
-cl.exe /nologo /O2 stub_ntdll.c /Fe:stub_ntdll.exe /link /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib user32.lib
+cl.exe /nologo /O2 stub_ntdll.c /Fe:stub_ntdll.exe /link /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib user32.lib advapi32.lib
 if %errorlevel% neq 0 (
     echo.
     echo failed to build stub_ntdll
@@ -62,7 +62,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-link.exe /nologo /OUT:stub_syscalls.exe stub_syscalls.obj syscalls.obj /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib user32.lib
+link.exe /nologo /OUT:stub_syscalls.exe stub_syscalls.obj syscalls.obj /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib user32.lib advapi32.lib
 if %errorlevel% neq 0 (
     echo.
     echo failed to link stub_syscalls
@@ -88,7 +88,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-link.exe /nologo /OUT:stub_indirect.exe stub_indirect.obj indirect.obj /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib user32.lib
+link.exe /nologo /OUT:stub_indirect.exe stub_indirect.obj indirect.obj /SUBSYSTEM:CONSOLE /MACHINE:X64 kernel32.lib user32.lib advapi32.lib
 if %errorlevel% neq 0 (
     echo.
     echo failed to link stub_indirect

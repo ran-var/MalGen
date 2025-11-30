@@ -52,9 +52,21 @@ typedef struct {
 } AntiDebugOptions;
 
 typedef struct {
+    BOOL check_registry_keys;
+    BOOL check_files;
+    BOOL check_cpuid;
+} AntiVMOptions;
+
+typedef struct {
+    BOOL check_sleep_acceleration;
+    BOOL check_mouse_movement;
+    BOOL check_username;
+} AntiSandboxOptions;
+
+typedef struct {
     AntiDebugOptions anti_debug;
-    BOOL anti_vm;
-    BOOL anti_sandbox;
+    AntiVMOptions anti_vm;
+    AntiSandboxOptions anti_sandbox;
     BOOL obfuscate_strings;
 } AntiAnalysisOptions;
 
